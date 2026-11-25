@@ -1479,6 +1479,7 @@ public class DicomWorkflowOrchestratorService {
                         || "DICOM_VIA_RIS_API".equals(vendorReturnMode)
                         || "BOTH_PDF_API_AND_DICOM_AE".equals(vendorReturnMode)
                         || isPdfReturn;
+                boolean includePdfInRisUpload = isPdfReturn && generatedPdf != null;
                 if (sendDicomToRisApi) {
                     UploadReportServletResult risDicomRes = risUploadService.uploadDicomFileToRis(
                             siteId,
@@ -1492,9 +1493,9 @@ public class DicomWorkflowOrchestratorService {
                             reidentifiedVendorDicom.dicomFileName(),
                             reidentifiedVendorDicom.reidentifiedDicomPath(),
                             reidentifiedVendorDicom.reidentifiedDicomBytes(),
-                            generatedPdf != null ? generatedPdf.pdfFileName() : null,
-                            generatedPdf != null ? generatedPdf.pdfFilePath() : null,
-                            generatedPdf != null ? generatedPdf.pdfBytes() : null,
+                            includePdfInRisUpload ? generatedPdf.pdfFileName() : null,
+                            includePdfInRisUpload ? generatedPdf.pdfFilePath() : null,
+                            includePdfInRisUpload ? generatedPdf.pdfBytes() : null,
                             aeStatus,
                             false);
                     boolean risDicomSuccess = risDicomRes.httpStatus() >= 200
@@ -1506,7 +1507,7 @@ public class DicomWorkflowOrchestratorService {
                                     : "DICOM_FAILED_HTTP_" + risDicomRes.httpStatus());
                     resultRecord.setRisUploadStatus(
                             risDicomSuccess
-                                    ? (generatedPdf != null ? "PDF_AND_DICOM_UPLOADED_HTTP_200" : "DICOM_UPLOADED_HTTP_200")
+                                    ? (includePdfInRisUpload ? "PDF_AND_DICOM_UPLOADED_HTTP_200" : "DICOM_UPLOADED_HTTP_200")
                                     : "FAILED_HTTP_" + risDicomRes.httpStatus());
                     resultRecord.setRisUploadResponse(risDicomRes.rawResponseJson());
                     if (risDicomRes.reportData() != null) {
@@ -1517,7 +1518,7 @@ public class DicomWorkflowOrchestratorService {
                     }
                     resultRecord.setReportPrefillStatus(
                             risDicomSuccess
-                                    ? (generatedPdf != null
+                                    ? (includePdfInRisUpload
                                             ? "RIS_PDF_AND_DICOM_UPLOADED"
                                             : "RIS_DICOM_UPLOADED_AND_AE_SENT")
                                     : "RIS_DICOM_UPLOAD_FAILED");

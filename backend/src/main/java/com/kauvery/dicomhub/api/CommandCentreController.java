@@ -424,14 +424,14 @@ public class CommandCentreController {
                 return synthetic;
             }
         }
-        // Default fallback when invoked internally or without headers: site's SUPER_USER (admin or super.admin)
-        return hubUserRepository.findFirstBySiteIdAndUsernameIgnoreCase(siteId, "admin")
-                .or(() -> hubUserRepository.findFirstBySiteIdAndUsernameIgnoreCase(siteId, "super.admin"))
+        // Default fallback when invoked internally or without headers: site's SUPER_USER (super.admin or admin)
+        return hubUserRepository.findFirstBySiteIdAndUsernameIgnoreCase(siteId, "super.admin")
+                .or(() -> hubUserRepository.findFirstBySiteIdAndUsernameIgnoreCase(siteId, "admin"))
                 .or(() -> hubUserRepository.findBySiteIdOrderByCreatedAtAsc(siteId).stream()
                         .filter(u -> u.isActive() && "SUPER_USER".equalsIgnoreCase(u.getUserRole()))
                         .findFirst())
-                .or(() -> hubUserRepository.findFirstByUsernameIgnoreCase("admin"))
                 .or(() -> hubUserRepository.findFirstByUsernameIgnoreCase("super.admin"))
+                .or(() -> hubUserRepository.findFirstByUsernameIgnoreCase("admin"))
                 .orElseGet(() -> ensureDefaultAdminUserExists(siteId));
     }
 
@@ -1655,7 +1655,7 @@ public class CommandCentreController {
                     : "";
             logs.add(new StudyProcessingLogEntryDto(
                     step++,
-                    "6. ON-PREMISE RE-IDENTIFICATION & CLINICAL PDF / DICOM GENERATION",
+                    "6. ON-PREMISE RE-IDENTIFICATION & CLINICAL PDF GENERATION",
                     hasDicom ? "AI_VENDOR_DICOM_REIDENTIFIED_AND_PREPARED" : "CLINICAL_PDF_REPORT_GENERATED",
                     resGenBy,
                     "SUCCESS",
@@ -1702,7 +1702,7 @@ public class CommandCentreController {
                     : ("processed PDF file '" + rep.getPdfFileName() + "' (" + rep.getPdfFileSizeBytes() + " bytes)");
             logs.add(new StudyProcessingLogEntryDto(
                     step++,
-                    "7. RIS / TELERAD UploadReportServlet PDF / DICOM & reportData DELIVERY",
+                    "7. RIS / TELERAD UploadReportServlet PDF & reportData DELIVERY",
                     actionLabel,
                     rep.getGeneratedBy() != null ? rep.getGeneratedBy() : latestGeneratedBy,
                     risSuccess ? "SUCCESS" : "FAILURE",
@@ -5354,9 +5354,11 @@ public class CommandCentreController {
                 userId.toString());
         if (existing.isActive() && "SUPER_USER".equalsIgnoreCase(existing.getUserRole())) {
             long activeSuperUsers = hubUserRepository.findBySiteIdOrderByCreatedAtAsc(sid).stream()
-                    .filter(u -> u.isActive() && "SUPER_USER".equalsIgnoreCase(u.getUserRole()))
+                    .filter(u -> u.isActive()
+                            && "SUPER_USER".equalsIgnoreCase(u.getUserRole())
+                            && !"admin".equalsIgnoreCase(u.getUsername()))
                     .count();
-            if (activeSuperUsers <= 1) {
+            if (activeSuperUsers <= 1 || "admin".equalsIgnoreCase(existing.getUsername())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Cannot disable the last active SUPER_USER account for this hospital site.");
             }
@@ -5386,9 +5388,11 @@ public class CommandCentreController {
                 userId.toString());
         if ("SUPER_USER".equalsIgnoreCase(existing.getUserRole())) {
             long activeSuperUsers = hubUserRepository.findBySiteIdOrderByCreatedAtAsc(sid).stream()
-                    .filter(u -> u.isActive() && "SUPER_USER".equalsIgnoreCase(u.getUserRole()))
+                    .filter(u -> u.isActive()
+                            && "SUPER_USER".equalsIgnoreCase(u.getUserRole())
+                            && !"admin".equalsIgnoreCase(u.getUsername()))
                     .count();
-            if (activeSuperUsers <= 1) {
+            if (activeSuperUsers <= 1 || "admin".equalsIgnoreCase(existing.getUsername())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Cannot delete the last active SUPER_USER account for this hospital site.");
             }
