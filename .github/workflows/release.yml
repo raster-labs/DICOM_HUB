@@ -1,0 +1,95 @@
+name: Release & Publish Docker Deployment
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: Build Docker Images & Publish GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine release version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "owner_lower=${OWNER_LOWER}" >> "$GITHUB_OUTPUT"
+          echo "repo_lower=${REPO_LOWER}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Backend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/dicomhub-backend:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/dicomhub-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/dicomhub-frontend:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/dicomhub-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Package Server Deployment Bundle
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          BUNDLE_DIR="dicomhub-deploy-${VERSION}"
+          mkdir -p "${BUNDLE_DIR}/nginx" "${BUNDLE_DIR}/monitoring" "${BUNDLE_DIR}/scripts"
+          cp docker-compose.prod.yml "${BUNDLE_DIR}/docker-compose.prod.yml"
+          cp docker-compose.yml "${BUNDLE_DIR}/docker-compose.yml"
+          cp .env.example "${BUNDLE_DIR}/.env.example"
+          cp nginx/nginx.conf "${BUNDLE_DIR}/nginx/nginx.conf"
+          cp monitoring/prometheus.yml "${BUNDLE_DIR}/monitoring/prometheus.yml"
+          cp scripts/deploy.sh "${BUNDLE_DIR}/scripts/deploy.sh"
+          chmod +x "${BUNDLE_DIR}/scripts/deploy.sh"
+          tar -czf "dicomhub-deploy-${VERSION}.tar.gz" "${BUNDLE_DIR}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.version }}
+          name: "DICOM Hub ${{ steps.meta.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            dicomhub-deploy-${{ steps.meta.outputs.version }}.tar.gz
+            docker-compose.prod.yml
+            .env.example

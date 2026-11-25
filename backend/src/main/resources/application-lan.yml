@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:/Users/pushparaj/projects/DICOMHub/data/dicomhub_lan;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_ON_EXIT=FALSE}
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  address: 0.0.0.0
+  port: ${SERVER_PORT:8080}
+
+hub:
+  role: all
+  default-site-id: 11111111-1111-1111-1111-111111111111
+  storage:
+    root-dir: ${HUB_STORAGE_ROOT:/Users/pushparaj/projects/DICOMHub/storage}
+  dicom-scp:
+    enabled: true
+    ae-title: DICOMHUB_AE
+    bind-host: 0.0.0.0
+    port: 11112
+  crypto:
+    pseudonym-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
